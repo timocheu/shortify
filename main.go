@@ -10,7 +10,7 @@ import (
 	"github.com/timocheu/shortify/utils"
 )
 
-var dbClient = utils.NewRedisClient()
+var dbClient = utils.NewLocalRedisClient()
 var ctx = context.Background()
 
 func main() {
@@ -58,6 +58,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("Key: %s\n", key)
 	longURL, err := utils.GetLongURL(&ctx, dbClient, key)
 	// Check if URL exist in redis server
 	if err != nil {

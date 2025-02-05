@@ -12,6 +12,7 @@ import (
 
 var dbClient = utils.NewLocalRedisClient()
 var ctx = context.Background()
+var counter int64 = 1000000000000
 
 func main() {
 	if dbClient == nil {
@@ -26,7 +27,6 @@ func main() {
 	// Listener for incoming request
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
-
 func indexPage(w http.ResponseWriter, r *http.Request) {
 	tmpl := template.Must(template.ParseFiles("template/index.html"))
 
@@ -37,7 +37,8 @@ func shortenPage(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
 	fmt.Println("Payload: ", url)
 
-	shortURL := utils.GetShortCode()
+	shortURL := utils.GetShortCode(counter)
+	counter++
 	fullShortURL := fmt.Sprintf("http://localhost:8080/r/%s", shortURL)
 
 	// Print generated url

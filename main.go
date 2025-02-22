@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
 	"text/template"
 
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/timocheu/shortify/utils"
 )
 
@@ -14,23 +16,51 @@ var dbClient = utils.NewLocalRedisClient()
 var ctx = context.Background()
 var counter int64 = 1000000000000
 
+// html templates
+type Templates struct {
+	templates *template.Template
+}
+
+func (t *Templates) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	return t.templates.ExecuteTemplate(w, name, data)
+}
+
+func newTemplate() *Templates {
+	return &Templates{
+		templates: template.Must(template.ParseGlob("template/*.html")),
+	}
+}
+
+// Sample counter
+type Counter struct {
+	Count int
+}
+
+// Test count
+var count = Counter{Count: 0}
+
 func main() {
 	if dbClient == nil {
 		fmt.Println("Failed to connect to redis")
 		return
 	}
 
-	http.HandleFunc("/", indexPage)
+	// Intitalize echo web
+	e := echo.New()
+	e.Use(middleware.Logger())
+	// Render the page
+	e.Renderer = newTemplate()
+
+	e.GET("/", index)
 	http.HandleFunc("/shorten", shortenPage)
 	http.HandleFunc("/r/{code}", redirect)
 
-	// Listener for incoming request
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	e.Logger.Fatal(e.Start(":8080"))
 }
-func indexPage(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("template/index.html"))
 
-	tmpl.Execute(w, nil)
+func index(c echo.Context) error {
+	count.Count++
+	return c.Render(200, "index", count)
 }
 
 func shortenPage(w http.ResponseWriter, r *http.Request) {

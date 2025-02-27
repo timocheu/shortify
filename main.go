@@ -31,14 +31,6 @@ func newTemplate() *Templates {
 	}
 }
 
-// Sample counter
-type Counter struct {
-	Count int
-}
-
-// Test count
-var count = Counter{Count: 0}
-
 func main() {
 	if dbClient == nil {
 		fmt.Println("Failed to connect to redis")
@@ -48,55 +40,52 @@ func main() {
 	// Intitalize echo web
 	e := echo.New()
 	e.Use(middleware.Logger())
+
 	// Render the page
 	e.Renderer = newTemplate()
 
-	e.GET("/", index)
-	http.HandleFunc("/shorten", shortenPage)
-	http.HandleFunc("/r/{code}", redirect)
+	// Index
+	e.GET("/", func(c echo.Context) error {
+		return c.Render(200, "index", nil)
+	})
+
+	// Shorten
+	e.POST("/shorten", shortenPage)
+	e.POST("/r{code}", redirect)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
-func index(c echo.Context) error {
-	count.Count++
-	return c.Render(200, "index", count)
-}
-
-func shortenPage(w http.ResponseWriter, r *http.Request) {
-	url := r.FormValue("url")
+func shortenPage(c echo.Context) error {
+	url := c.FormValue("url")
 	fmt.Println("Payload: ", url)
 
 	shortURL := utils.GetShortCode(counter)
 	counter++
 	fullShortURL := fmt.Sprintf("http://localhost:8080/r/%s", shortURL)
-
 	// Print generated url
 	fmt.Println("Generated URL: ", shortURL)
 
 	utils.SetKey(&ctx, dbClient, shortURL, url, 0)
 
-	// Write the response into the responese write
-	fmt.Fprintf(w, `<p class="mt-4 text-blue-400">Shortened URL: <a href="/r/%s" class="underline">%s</a></p>`, shortURL, fullShortURL)
+	return c.Render(200, "url", fullShortURL)
 }
 
-func redirect(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("code")
+func redirect(c echo.Context) error {
+	key := c.Request().PathValue("code")
 
 	// Check if the key exist or empty
 	if key == "" {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid URL")
 	}
 
 	fmt.Printf("Key: %s\n", key)
 	longURL, err := utils.GetLongURL(&ctx, dbClient, key)
 	// Check if URL exist in redis server
 	if err != nil {
-		http.Error(w, "Unable to find the Shortened URL", http.StatusBadRequest)
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, "Unable to find the Shortened URL")
 	}
 
 	// Do the redirect after all error check
-	http.Redirect(w, r, longURL, http.StatusPermanentRedirect)
+	return c.Redirect(http.StatusPermanentRedirect, longURL)
 }
